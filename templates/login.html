@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Login page</title>
+    <style>
+      body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-image: url(https://wallpapercave.com/wp/wp2590323.png);
+        background-size: cover;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-attachment: fixed;
+      }
+
+      form {
+        height: 100%;
+        width: 10%;
+        position: fixed;
+        bottom: -60%;
+        font-weight: bold;
+      }
+    </style>
+    <h1
+      style="color: white; position: relative; bottom: -80px; font-size: 45px"
+    >
+      Welcome to Challan Registration center
+    </h1>
+  </head>
+  <body>
+    <form action="/form_login" method="post">
+      <h2></h2>
+      <a style="color: white"> Username:</a><br />
+      <input type="text" name="username" /><br />
+      <a style="color: white"> Password:</a><br />
+      <input name="password" /><br /><br />
+      <input type="submit" value="Login" />
+    </form>
+    <h1
+      style="
+        border: 10px;
+        background-color: red;
+        height: 7%;
+        position: fixed;
+        bottom: 40%;
+      "
+    >
+      {{info}}
+    </h1>
+  </body>
+</html>
