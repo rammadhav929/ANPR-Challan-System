@@ -25,8 +25,8 @@ collection = db["vehicle"]
 
 app.config["MAIL_SERVER"] = "smtp.gmail.com"
 app.config["MAIL_PORT"] = 587
-app.config["MAIL_USERNAME"] = "b.rammadhav@gmail.com"
-app.config["MAIL_PASSWORD"] = "vtopbkngcumofrxh"
+app.config["MAIL_USERNAME"] = "Keep Your own gmail Username"
+app.config["MAIL_PASSWORD"] = "Don't keep your gmail password you generate it for flask mail follow you tube"
 app.config["MAIL_USE_TLS"] = True
 mail.init_app(app)
 BASE_PATH = os.getcwd()
