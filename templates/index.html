@@ -1,0 +1,89 @@
+{% extends 'layout.html' %} {% block body %}
+
+<div class="container mt-5">
+  <div class="card shadow p-4">
+    <h4 class="text-center mb-4">Upload Violation Image</h4>
+
+    <!-- Error Message -->
+    {% if error %}
+    <div class="alert alert-danger text-center">{{ error }}</div>
+    {% endif %}
+
+    <form action="/detect" method="POST" enctype="multipart/form-data">
+      <div class="input-group">
+        <input type="file" class="form-control" name="image_name" required />
+        <button class="btn btn-dark" type="submit">Detect Plate</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if upload %}
+<div class="container mt-5">
+  <div class="card shadow p-4" style="background: white">
+    <div class="row justify-content-center">
+      <div class="col-md-5 text-center">
+        <h5>Uploaded Image</h5>
+        <img
+          class="img-fluid rounded shadow"
+          src="/static/upload/{{ upload_image }}"
+        />
+      </div>
+
+      <div class="col-md-5 text-center">
+        <h5>Detected Output</h5>
+        <img
+          class="img-fluid rounded shadow"
+          src="/static/predict/{{ upload_image }}"
+        />
+      </div>
+    </div>
+
+    <div class="card shadow mt-4">
+      <div class="card-header bg-light">
+        <strong>Detected Number Plate: {{ number_plate }}</strong>
+      </div>
+    </div>
+
+    {% if not is_registered %}
+    <script>
+      alert("⚠️ Vehicle not registered! Please register it first.");
+    </script>
+    <div class="mt-3 text-center">
+      <a
+        href="{{ url_for('register', plate=number_plate) }}"
+        class="btn btn-warning"
+      >
+        Register Vehicle
+      </a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %} {% if is_registered %}
+<div class="card shadow p-4 mt-4">
+  <h5 class="mb-3">Assign Challan</h5>
+
+  <form action="{{ url_for('create_challan') }}" method="POST">
+    <label class="form-label">Number Plate</label>
+    <input
+      type="text"
+      name="selected_plate"
+      value="{{ number_plate }}"
+      class="form-control"
+      readonly
+    />
+
+    <label class="form-label mt-3">Violation Type:</label>
+    <select class="form-select" name="violation" required>
+      <option value="speeding">Speeding</option>
+      <option value="red-light-violation">Red Light Violation</option>
+      <option value="wrong-number-plate-format">
+        Wrong Number Plate Format
+      </option>
+    </select>
+
+    <button type="submit" class="btn btn-primary mt-3">Assign Challan</button>
+  </form>
+</div>
+{% endif %} {% endblock %}
