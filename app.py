@@ -1,5 +1,6 @@
 from flask import (
     Flask,
+    jsonify,
     render_template,
     request,
     redirect,
@@ -31,7 +32,7 @@ app.config["MAIL_USE_TLS"] = True
 mail.init_app(app)
 BASE_PATH = os.getcwd()
 UPLOAD_PATH = os.path.join(BASE_PATH, "static/upload/")
-database = {"ram": "123"}
+# database = {"ram": "123"}
 
 
 def send_reminder_email(challan_id):
@@ -76,79 +77,121 @@ def schedule_reminder_email(challan_id):
 @app.route("/")
 def hello_world():
 
-    return render_template("login.html")
+    return render_template("index.html")
 
 
-@app.route("/form_login", methods=["POST", "GET"])
-def login():
-    name1 = request.form["username"]
-    pwd = request.form["password"]
-    if name1 not in database:
-        return render_template("login.html", info="Invalid User")
-    else:
-        if database[name1] != pwd:
-            return render_template("login.html", info="Invalid password")
-        else:
-            session["username"] = name1  # Store username in session
-            return redirect("/index")
+@app.route("/detect", methods=["POST"])
+def detect():
+    try:
+        upload_file = request.files.get("image_name")
+        if not upload_file:
+            return render_template(
+                "index.html", error="No file uploaded!", upload=False
+            )
 
-
-@app.route("/index", methods=["POST", "GET"])
-def index():
-    if "username" not in session:
-        return redirect("/")  # Redirect to login page if not logged in
-
-    if request.method == "POST":
-        upload_file = request.files["image_name"]
         filename = upload_file.filename
         path_save = os.path.join(UPLOAD_PATH, filename)
         upload_file.save(path_save)
-        a = plate(path_save, filename)
-        Ic_number = a
-        violation = request.form.get("violation")
-        details = collection.find_one({"number_plate": Ic_number})
-        print(details)
-        print(collection)
-        if details:
-            owner_name = details["name"]
-            email = details["email"]
-            current_time = datetime.datetime.now()
-            challan = {
-                "Ic_number": Ic_number,
-                "ownername": owner_name,
-                "email": email,
-                "offence": violation,
-                "datetime_of_offence": current_time,
-            }
-            challan_id = db["challan"].insert_one(challan).inserted_id
-            msg = Message(
-                "Challan on your vehicle no:" + Ic_number,
-                sender="b.rammadhav@gmail.com",
-                recipients=[email],
-            )
-            msg.body = (
-                "Challan has been raised on your vehicle no: "
-                + Ic_number
-                + " due to "
-                + violation
-                + " on the owner of the vehicle "
-                + owner_name
-                + " on "
-                + str(current_time)
-                + ". Pay your challan before the due date i.e "
-                + str(current_time + datetime.timedelta(days=15))
-            )
-            mail.send(msg)
-            schedule_reminder_email(challan_id)
 
-        # Perform image processing or any other logic
+        detected_plate = plate(path_save, filename)
+
+        details = collection.find_one({"number_plate": detected_plate})
+
         return render_template(
             "index.html",
             upload=True,
             upload_image=filename,
-            no=a,
+            number_plate=detected_plate,  # ✔ send detected plate directly
+            is_registered=bool(details),
+            owner=details,
         )
-    return render_template("index.html", upload=False)
+
+    except Exception as e:
+        return render_template(
+            "index.html",
+            error=str(e),
+            upload=False,
+            number_plate="",
+            is_registered=False,
+        )
+
+
+@app.route("/create_challan", methods=["POST"])
+def create_challan():
+    try:
+        # 1️⃣ Extract form fields safely
+        plate_no = request.form.get("selected_plate")
+        violation = request.form.get("violation")
+
+        if not plate_no or not violation:
+            return jsonify({"error": "Missing number_plate or violation"}), 400
+
+        # 2️⃣ Fetch owner details
+        try:
+            details = collection.find_one({"number_plate": plate_no})
+        except Exception as db_err:
+            return jsonify({"error": "Database error", "details": str(db_err)}), 500
+
+        if not details:
+            return jsonify({"error": "Vehicle not registered"}), 400
+
+        owner_name = details["name"]
+        email = details["email"]
+        current_time = datetime.datetime.now()
+
+        # 3️⃣ Create challan entry
+        challan = {
+            "Ic_number": plate_no,
+            "ownername": owner_name,
+            "email": email,
+            "offence": violation,
+            "datetime_of_offence": current_time,
+        }
+
+        try:
+            challan_id = db["challan"].insert_one(challan).inserted_id
+        except Exception as insert_err:
+            return (
+                jsonify(
+                    {"error": "Failed to create challan", "details": str(insert_err)}
+                ),
+                500,
+            )
+
+        # 4️⃣ Send email notification
+        try:
+            msg = Message(
+                f"Challan for vehicle: {plate_no}",
+                sender="b.rammadhav@gmail.com",
+                recipients=[email],
+            )
+            msg.body = (
+                f"Challan issued for vehicle {plate_no} due to {violation} "
+                f"on {current_time}."
+            )
+            mail.send(msg)
+        except Exception as mail_err:
+            return (
+                jsonify(
+                    {
+                        "error": "Challan created but email failed",
+                        "details": str(mail_err),
+                    }
+                ),
+                500,
+            )
+
+        # 5️⃣ Schedule reminder
+        try:
+            schedule_reminder_email(challan_id)
+        except Exception as schedule_err:
+            print("Scheduler error:", schedule_err)
+
+        return redirect("/challans_page")
+
+    except Exception as e:
+        # Final safety net
+        return jsonify({"error": "Unexpected error", "details": str(e)}), 500
 
 
 @app.route("/challans_page", methods=["GET", "POST"])
@@ -161,14 +204,21 @@ def challans_page():
     return redirect(url_for("index"))
 
 
-@app.route("/logout")
-def logout():
-    session.clear()  # Clear the session data
-    response = make_response(redirect("/"))
-    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-    response.headers["Pragma"] = "no-cache"
-    response.headers["Expires"] = "0"
-    return response
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if request.method == "GET":
+        plate = request.args.get("plate", "")
+        print("see the plate number is    " + str(plate))
+        return render_template("register.html", plate=plate)
+
+    name = request.form["name"]
+    email = request.form["email"]
+    number_plate = request.form["number_plate"]
+
+    # Insert to MongoDB
+    collection.insert_one({"name": name, "email": email, "number_plate": number_plate})
+
+    return "Registration Successful!"
 
 
 if __name__ == "__main__":
